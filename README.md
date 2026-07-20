@@ -49,6 +49,57 @@ The Application Load Balancer distributes requests across healthy EC2 targets.
 The EC2 instances are created by an Auto Scaling Group and run the immutable
 Docker image referenced by AWS Systems Manager Parameter Store.
 
+### AWS Architecture
+
+```mermaid
+flowchart TD
+    Internet["Internet client"] -->|"HTTP :80"| ALB
+    GitHub["GitHub Actions"] -->|"OIDC token"| DeployRole["Deployment IAM role"]
+
+    subgraph AWS["AWS account — ap-southeast-1"]
+        DeployRole -->|"Push branch-commitID image"| ECR["Amazon ECR"]
+        DeployRole -->|"Update image URI"| SSM["SSM Parameter Store"]
+        DeployRole -->|"Start instance refresh"| ASG["Auto Scaling Group — 2 to 4 instances"]
+
+        subgraph VPC["Default VPC — multiple Availability Zones"]
+            ALB["Public Application Load Balancer"]
+            TG["Target Group — HTTP :3000 — health check / "]
+
+            subgraph Compute["EC2 Auto Scaling instances"]
+                EC2A["EC2 instance A — Docker — Node.js :3000"]
+                EC2B["EC2 instance B — Docker — Node.js :3000"]
+            end
+
+            ALB -->|"ALB security group"| TG
+            TG -->|"Instance security group"| EC2A
+            TG -->|"Instance security group"| EC2B
+        end
+
+        ASG --> EC2A
+        ASG --> EC2B
+        EC2Role["EC2 IAM role"] -->|"Read current image URI"| SSM
+        EC2Role -->|"Pull private image"| ECR
+        EC2Role --> EC2A
+        EC2Role --> EC2B
+        CPU["CPU target tracking — 50 percent"] --> ASG
+    end
+```
+
+The AWS request and deployment paths are intentionally separated:
+
+- **Request path:** Internet traffic enters the public ALB on port 80. The ALB
+  forwards requests only to healthy Auto Scaling instances on port 3000.
+- **Deployment path:** GitHub Actions assumes the deployment IAM role through
+  OIDC, pushes an immutable image to ECR, updates the image URI in Parameter
+  Store, and starts an Auto Scaling instance refresh.
+- **Instance bootstrap path:** Each new EC2 instance uses its instance role to
+  read the current image URI, authenticate to ECR, pull the image, and start the
+  Node.js container.
+- **Network isolation:** The application Security Group accepts port 3000 only
+  from the ALB Security Group. SSH port 22 is not exposed.
+- **Availability and scaling:** The ASG maintains two instances under normal
+  conditions and can scale to four based on average CPU utilization.
+
 ## Branch Strategy
 
 Changes are promoted through the following branches:
