@@ -51,39 +51,7 @@ Docker image referenced by AWS Systems Manager Parameter Store.
 
 ### AWS Architecture
 
-```mermaid
-flowchart TD
-    Internet["Internet client"] -->|"HTTP :80"| ALB
-    GitHub["GitHub Actions"] -->|"OIDC token"| DeployRole["Deployment IAM role"]
-
-    subgraph AWS["AWS account — ap-southeast-1"]
-        DeployRole -->|"Push branch-commitID image"| ECR["Amazon ECR"]
-        DeployRole -->|"Update image URI"| SSM["SSM Parameter Store"]
-        DeployRole -->|"Start instance refresh"| ASG["Auto Scaling Group — 2 to 4 instances"]
-
-        subgraph VPC["Default VPC — multiple Availability Zones"]
-            ALB["Public Application Load Balancer"]
-            TG["Target Group — HTTP :3000 — health check / "]
-
-            subgraph Compute["EC2 Auto Scaling instances"]
-                EC2A["EC2 instance A — Docker — Node.js :3000"]
-                EC2B["EC2 instance B — Docker — Node.js :3000"]
-            end
-
-            ALB -->|"ALB security group"| TG
-            TG -->|"Instance security group"| EC2A
-            TG -->|"Instance security group"| EC2B
-        end
-
-        ASG --> EC2A
-        ASG --> EC2B
-        EC2Role["EC2 IAM role"] -->|"Read current image URI"| SSM
-        EC2Role -->|"Pull private image"| ECR
-        EC2Role --> EC2A
-        EC2Role --> EC2B
-        CPU["CPU target tracking — 50 percent"] --> ASG
-    end
-```
+![AWS deployment architecture](docs/aws-architecture.png)
 
 The AWS request and deployment paths are intentionally separated:
 
