@@ -131,8 +131,8 @@ jobs:
           REFRESH_ID=$(aws autoscaling start-instance-refresh \
             --auto-scaling-group-name "$ASG_NAME" \
             --preferences '{
-              "MinHealthyPercentage": 50,
-              "MaxHealthyPercentage": 200,
+              "MinHealthyPercentage": 100,
+              "MaxHealthyPercentage": 150,
               "InstanceWarmup": 120
             }' \
             --region "$AWS_REGION" \
