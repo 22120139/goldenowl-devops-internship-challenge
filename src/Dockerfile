@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# =========================
+# ==========================
 # Stage 1: Build
-# =========================
+# ==========================
 FROM node:20.20.2-alpine AS build
 
 WORKDIR /app
