@@ -28,7 +28,22 @@ output "ec2_public_ip" {
   value       = aws_instance.app.public_ip
 }
 
+output "load_balancer_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  value       = aws_lb.app.dns_name
+}
+
 output "application_url" {
-  description = "Public URL of the deployed application"
-  value       = "http://${aws_instance.app.public_ip}:3000"
+  description = "Public URL of the load-balanced application"
+  value       = "http://${aws_lb.app.dns_name}"
+}
+
+output "autoscaling_group_name" {
+  description = "Name of the application Auto Scaling Group"
+  value       = aws_autoscaling_group.app.name
+}
+
+output "image_parameter_name" {
+  description = "SSM parameter containing the deployed image URI"
+  value       = aws_ssm_parameter.app_image.name
 }

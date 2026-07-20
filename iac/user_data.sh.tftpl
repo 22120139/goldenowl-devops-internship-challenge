@@ -1,0 +1,28 @@
+#!/bin/bash
+set -euxo pipefail
+
+dnf install -y docker
+systemctl enable --now docker
+systemctl enable --now amazon-ssm-agent
+
+IMAGE_URI=$(aws ssm get-parameter \
+  --name "${image_parameter_name}" \
+  --region "${aws_region}" \
+  --query "Parameter.Value" \
+  --output text)
+
+ECR_REGISTRY=$(echo "$IMAGE_URI" | cut -d/ -f1)
+
+aws ecr get-login-password \
+  --region "${aws_region}" |
+  docker login \
+    --username AWS \
+    --password-stdin "$ECR_REGISTRY"
+
+docker pull "$IMAGE_URI"
+
+docker run -d \
+  --name goldenowl-app \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  "$IMAGE_URI"

@@ -15,3 +15,13 @@ variable "instance_type" {
   type        = string
   default     = "t3.micro"
 }
+
+variable "image_tag" {
+  description = "Initial ECR image tag used to bootstrap Auto Scaling instances"
+  type        = string
+
+  validation {
+    condition     = length(var.image_tag) == 40
+    error_message = "image_tag must be a full 40-character Git commit SHA."
+  }
+}

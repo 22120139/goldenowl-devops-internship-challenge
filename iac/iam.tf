@@ -80,7 +80,7 @@ data "aws_iam_policy_document" "github_actions_ecr" {
     ]
   }
 
-    statement {
+  statement {
     sid    = "DeployApplicationThroughSSM"
     effect = "Allow"
 
@@ -100,6 +100,31 @@ data "aws_iam_policy_document" "github_actions_ecr" {
 
     actions = [
       "ssm:GetCommandInvocation"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "UpdateApplicationImageParameter"
+    effect = "Allow"
+
+    actions = [
+      "ssm:PutParameter"
+    ]
+
+    resources = [
+      aws_ssm_parameter.app_image.arn
+    ]
+  }
+
+  statement {
+    sid    = "RefreshAutoScalingInstances"
+    effect = "Allow"
+
+    actions = [
+      "autoscaling:StartInstanceRefresh",
+      "autoscaling:DescribeInstanceRefreshes"
     ]
 
     resources = ["*"]
@@ -165,6 +190,19 @@ data "aws_iam_policy_document" "ecr_pull" {
 
     resources = [
       aws_ecr_repository.app.arn
+    ]
+  }
+
+  statement {
+    sid    = "ReadApplicationImageParameter"
+    effect = "Allow"
+
+    actions = [
+      "ssm:GetParameter"
+    ]
+
+    resources = [
+      aws_ssm_parameter.app_image.arn
     ]
   }
 }
