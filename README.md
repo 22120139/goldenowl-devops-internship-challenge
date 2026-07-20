@@ -17,7 +17,7 @@ Expected response:
 Test the endpoint:
 
 ```bash
-curl YOUR_ALB_URL
+curl http://goldenowl-devops-1322176295.ap-southeast-1.elb.amazonaws.com
 ```
 
 ## Architecture
