@@ -25,6 +25,9 @@ jobs:
     name: Test Node.js application
     runs-on: ubuntu-latest
 
+    outputs:
+      app_changed: ${{ steps.changes.outputs.app_changed }}
+
     defaults:
       run:
         working-directory: src
@@ -32,6 +35,22 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      
+      - name: Detect application changes
+        id: changes
+        if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          if git -C "$GITHUB_WORKSPACE" diff --quiet \
+            "$BEFORE_SHA" "$CURRENT_SHA" -- src; then
+            echo "app_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app_changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -54,7 +73,9 @@ jobs:
 
   build-and-push:
     name: Build and push Docker image
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' &&
+      needs.test.outputs.app_changed == 'true'
     needs: test
     runs-on: ubuntu-latest
 
