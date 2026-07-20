@@ -79,6 +79,31 @@ data "aws_iam_policy_document" "github_actions_ecr" {
       aws_ecr_repository.app.arn
     ]
   }
+
+    statement {
+    sid    = "DeployApplicationThroughSSM"
+    effect = "Allow"
+
+    actions = [
+      "ssm:SendCommand"
+    ]
+
+    resources = [
+      aws_instance.app.arn,
+      "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript"
+    ]
+  }
+
+  statement {
+    sid    = "ReadSSMCommandResult"
+    effect = "Allow"
+
+    actions = [
+      "ssm:GetCommandInvocation"
+    ]
+
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "github_actions_ecr" {
@@ -86,4 +111,71 @@ resource "aws_iam_role_policy" "github_actions_ecr" {
   role = aws_iam_role.github_actions.id
 
   policy = data.aws_iam_policy_document.github_actions_ecr.json
+}
+
+data "aws_iam_policy_document" "ec2_assume_role" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRole"
+    ]
+
+    principals {
+      type = "Service"
+
+      identifiers = [
+        "ec2.amazonaws.com"
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "app_instance" {
+  name               = "${var.project_name}-ec2"
+  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.app_instance.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+data "aws_iam_policy_document" "ecr_pull" {
+  statement {
+    sid    = "GetECRAuthorizationToken"
+    effect = "Allow"
+
+    actions = [
+      "ecr:GetAuthorizationToken"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "PullImageFromProjectRepository"
+    effect = "Allow"
+
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer"
+    ]
+
+    resources = [
+      aws_ecr_repository.app.arn
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "ecr_pull" {
+  name   = "${var.project_name}-ecr-pull"
+  role   = aws_iam_role.app_instance.id
+  policy = data.aws_iam_policy_document.ecr_pull.json
+}
+
+resource "aws_iam_instance_profile" "app" {
+  name = "${var.project_name}-ec2"
+  role = aws_iam_role.app_instance.name
 }
