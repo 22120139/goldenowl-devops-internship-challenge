@@ -1,45 +1,268 @@
-# Golden Owl DevOps Internship - Technical Test
-At Golden Owl, we believe in treating infrastructure as code and automating resource provisioning to the fullest extent possible. 
+# Golden Owl DevOps Internship Challenge
 
-In this technical test, we challenge you to create a robust CI build pipeline using GitHub Actions. You have the freedom to complete this test in your local environment.
+A containerized Node.js application with an automated CI/CD pipeline using GitHub Actions, Amazon ECR, AWS EC2 Auto Scaling, Application Load Balancer, AWS Systems Manager, and and Terraform.
 
-## Your Mission 🌟
-Your mission, should you choose to accept it, is to craft a CI job that:
-1. Forks this repository to your personal GitHub account.
-2. Dockerizes a Node.js application.
-3. Establishes an automated CI/CD build process using GitHub Actions workflow and a container registry service such as DockerHub or Amazon Elastic Container Registry (ECR) or similar services.
-4. Initiates CI tests automatically when changes are pushed to the feature branch on GitHub.
-5. Utilizes GitHub Actions for Continuous Deployment (CD) to deploy the application to major cloud providers like AWS EC2, AWS ECS or Google Cloud (please submit the deployment link).
-## Nice to have 🎨
-We would be genuinely delighted if you could complement your submission with a `visual flow diagram`, illustrating the sequence of tasks you performed, including the implementation of a `load balancer` and `auto scaling` for the deployed application. This additional touch would greatly enhance our understanding and appreciation of your work.
+## Live Application
 
-Reference tools for creating visual flow diagrams:
-- https://www.drawio.com/
-- https://excalidraw.com/
-- https://www.eraser.io/
-  
-Including a visual representation of your workflow will provide valuable insights into your approach and make your submission stand out. Thank you for considering this enhancement! 
-## The Bigger Picture 🌏
-This test is designed to evaluate your ability to implement modern automated infrastructure practices while demonstrating a basic understanding of Docker containers. In your solution, we encourage you to prioritize readability, maintainability, and the principles of DevOps.
+**Endpoint:** http://goldenowl-devops-1322176295.ap-southeast-1.elb.amazonaws.com
 
- ## Submission Guidelines 📬
-Your solution should be showcased in a public GitHub repository. We encourage you to commit early and often. We prefer to see a history of iterative progress rather than a single massive push. When you've completed the assignment, kindly share the URL of your repository with us.
+Expected response:
 
- ## Running the Node.js Application Locally  🏃‍♂️
- This is a Node.js application, and running it locally is straightforward:
-- Navigate to the `src` directory by executing `cd src`.
-- Install the project's dependencies listed in the package.json file by running `npm i`.
-- Execute `npm test` to run the application's tests.
-- Start the HTTP server with `npm start`.
-
-You can test it using the following command:
-  
-```shell
-curl localhost:3000
-```
-You should receive the following response:
 ```json
-{"message":"Welcome warriors to Golden Owl!"}
+{
+  "message": "Welcome warriors to Golden Owl!"
+}
 ```
 
-Are you ready to embark on this DevOps journey with us? 🚀 Best of luck with your assignment! 🌟
+Test the endpoint:
+
+```bash
+curl YOUR_ALB_URL
+```
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Developer["Developer"] -->|Push feature branch| GitHub["GitHub Repository"]
+    GitHub --> Actions["GitHub Actions"]
+
+    Actions --> Test["Lint, format and test"]
+    Test --> Build["Build Docker image"]
+    Build --> ECR["Amazon ECR"]
+    ECR --> Parameter["SSM Image Parameter"]
+    Parameter --> Refresh["ASG Instance Refresh"]
+
+    User["User"] --> ALB["Application Load Balancer"]
+    ALB --> TargetGroup["Target Group"]
+    TargetGroup --> EC2A["EC2 instance"]
+    TargetGroup --> EC2B["EC2 instance"]
+
+    Refresh --> EC2A
+    Refresh --> EC2B
+```
+
+## CI/CD Flow
+
+```mermaid
+flowchart LR
+    Push["Push feature branch"] --> Quality["Lint, format, test"]
+    Quality --> Docker["Build Docker image"]
+    Docker --> Registry["Push to Amazon ECR"]
+    Registry --> Update["Update SSM Parameter"]
+    Update --> Rolling["Start Instance Refresh"]
+    Rolling --> Health["ALB health checks"]
+    Health --> Verify["Verify public endpoint"]
+```
+
+The pipeline follows this sequence:
+
+1. A commit is pushed to a `feature/**` branch.
+2. GitHub Actions installs dependencies using `npm ci`.
+3. ESLint, Prettier, and Jest checks are executed.
+4. A production Docker image is built.
+5. The image is tagged with the full Git commit SHA.
+6. GitHub authenticates to AWS through OIDC.
+7. The immutable image is pushed to Amazon ECR.
+8. The image URI in AWS Systems Manager Parameter Store is updated.
+9. An Auto Scaling instance refresh replaces the instances gradually.
+10. The Application Load Balancer routes traffic only to healthy targets.
+11. GitHub Actions verifies the public endpoint.
+
+## Infrastructure
+
+Terraform provisions:
+
+- Amazon ECR private repository
+- GitHub Actions OIDC identity provider
+- Least-privilege IAM roles
+- Application Load Balancer
+- Target Group with HTTP health checks
+- EC2 Launch Template
+- Auto Scaling Group
+- CPU target-tracking scaling policy
+- AWS Systems Manager Parameter Store
+- Security Groups
+- Encrypted EBS volumes
+
+### Auto Scaling configuration
+
+| Setting | Value |
+|---|---:|
+| Minimum capacity | 2 |
+| Desired capacity | 2 |
+| Maximum capacity | 4 |
+| Target CPU utilization | 50% |
+| Instance type | `t3.micro` |
+| Instance refresh minimum healthy | 100% |
+| Instance refresh maximum healthy | 150% |
+
+## Security Decisions
+
+- GitHub Actions authenticates to AWS using OIDC and temporary credentials.
+- No long-lived AWS access keys are stored in GitHub Secrets.
+- EC2 instances do not expose SSH port 22.
+- Application instances accept port 3000 only from the ALB Security Group.
+- The ALB exposes only HTTP port 80.
+- EC2 instances use IAM roles to pull images from ECR.
+- ECR tags are immutable and use Git commit SHAs.
+- ECR scans images after they are pushed.
+- EBS volumes are encrypted.
+- EC2 Instance Metadata Service v2 is required.
+- IAM policies are scoped to the required ECR repository and deployment resources.
+
+## Repository Structure
+
+```text
+.
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── docs/
+│   └── screenshots/
+├── iac/
+│   ├── autoscaling.tf
+│   ├── ec2.tf
+│   ├── ecr.tf
+│   ├── iam.tf
+│   ├── outputs.tf
+│   ├── provider.tf
+│   ├── user_data.sh.tftpl
+│   ├── variables.tf
+│   └── versions.tf
+├── src/
+│   ├── Dockerfile
+│   ├── index.js
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── routes/
+│   ├── server/
+│   └── tests/
+├── .gitignore
+└── README.md
+```
+
+## Run Locally
+
+```bash
+cd src
+npm ci
+npm test
+npm start
+```
+
+Test the application:
+
+```bash
+curl http://localhost:3000
+```
+
+## Run with Docker
+
+Build the image:
+
+```bash
+docker build -t goldenowl-devops:local ./src
+```
+
+Run the container:
+
+```bash
+docker run --rm \
+  --name goldenowl-app \
+  -p 3000:3000 \
+  goldenowl-devops:local
+```
+
+Verify:
+
+```bash
+curl http://localhost:3000
+```
+
+## Terraform Usage
+
+Initialize Terraform:
+
+```bash
+terraform -chdir=iac init
+```
+
+Format and validate:
+
+```bash
+terraform -chdir=iac fmt -check
+terraform -chdir=iac validate
+```
+
+Preview infrastructure changes:
+
+```bash
+terraform -chdir=iac plan
+```
+
+Apply infrastructure:
+
+```bash
+terraform -chdir=iac apply
+```
+
+Display the application endpoint:
+
+```bash
+terraform -chdir=iac output application_url
+```
+
+The local `terraform.tfvars` file must define an existing ECR image tag:
+
+```hcl
+image_tag = "full-40-character-git-commit-sha"
+```
+
+## Branch Strategy
+
+Continuous integration is triggered for branches matching:
+
+```text
+feature/**
+```
+
+Pull requests targeting `master` also run the quality checks.
+
+Docker images use the full Git commit SHA:
+
+```text
+315219809073.dkr.ecr.ap-southeast-1.amazonaws.com/goldenowl-devops:<commit-sha>
+```
+
+## Deployment Strategy
+
+The deployment uses rolling instance replacement:
+
+1. GitHub Actions updates the image URI in Parameter Store.
+2. GitHub Actions starts an Auto Scaling instance refresh.
+3. A new EC2 instance starts and reads the image URI.
+4. The instance pulls and runs the corresponding image.
+5. The ALB marks the new target healthy.
+6. Auto Scaling terminates an old instance.
+7. The process repeats until all instances run the new image.
+
+This approach maintains healthy capacity during deployment.
+
+## Verification
+
+![GitHub Actions pipeline](docs/screenshots/github-actions.png)
+
+![Healthy ALB targets](docs/screenshots/healthy-targets.png)
+
+![Application response](docs/screenshots/application-response.png)
+
+## Cleanup
+
+After the assessment has been reviewed, destroy the infrastructure to stop ongoing charges:
+
+```bash
+terraform -chdir=iac destroy
+```
+
+The ECR repository must be empty before it can be destroyed because force deletion is intentionally disabled.
