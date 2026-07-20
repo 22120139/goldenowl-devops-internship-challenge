@@ -88,7 +88,7 @@ jobs:
 
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
   
-    deploy:
+  deploy:
     name: Deploy application to EC2
     if: github.event_name == 'push'
     needs: build-and-push
