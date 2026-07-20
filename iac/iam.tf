@@ -81,31 +81,6 @@ data "aws_iam_policy_document" "github_actions_ecr" {
   }
 
   statement {
-    sid    = "DeployApplicationThroughSSM"
-    effect = "Allow"
-
-    actions = [
-      "ssm:SendCommand"
-    ]
-
-    resources = [
-      aws_instance.app.arn,
-      "arn:aws:ssm:${var.aws_region}::document/AWS-RunShellScript"
-    ]
-  }
-
-  statement {
-    sid    = "ReadSSMCommandResult"
-    effect = "Allow"
-
-    actions = [
-      "ssm:GetCommandInvocation"
-    ]
-
-    resources = ["*"]
-  }
-
-  statement {
     sid    = "UpdateApplicationImageParameter"
     effect = "Allow"
 

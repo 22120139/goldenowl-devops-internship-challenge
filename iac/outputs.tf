@@ -18,16 +18,6 @@ output "github_actions_role_arn" {
   value       = aws_iam_role.github_actions.arn
 }
 
-output "ec2_instance_id" {
-  description = "ID of the application EC2 instance"
-  value       = aws_instance.app.id
-}
-
-output "ec2_public_ip" {
-  description = "Public IP of the application EC2 instance"
-  value       = aws_instance.app.public_ip
-}
-
 output "load_balancer_dns_name" {
   description = "DNS name of the Application Load Balancer"
   value       = aws_lb.app.dns_name
