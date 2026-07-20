@@ -4,9 +4,16 @@ on:
   push:
     branches:
       - "feature/**"
+      - dev
+      - staging
+      - production
+
   pull_request:
     branches:
       - master
+      - dev
+      - staging
+      - production
 
 permissions:
   contents: read
@@ -75,9 +82,18 @@ jobs:
     name: Build and push Docker image
     if: >-
       github.event_name == 'push' &&
-      needs.test.outputs.app_changed == 'true'
+      needs.test.outputs.app_changed == 'true' &&
+      (
+        github.ref_name == 'dev' ||
+        github.ref_name == 'staging' ||
+        github.ref_name == 'production'
+      )
     needs: test
     runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.image-metadata.outputs.image_tag }}
+      image_uri: ${{ steps.image-metadata.outputs.image_uri }}
 
     permissions:
       contents: read
@@ -91,6 +107,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: goldenowl-build-${{ github.run_id }}
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
 
@@ -98,21 +115,50 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
+      - name: Generate Docker image metadata
+        id: image-metadata
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          SAFE_BRANCH=$(echo "$GITHUB_REF_NAME" |
+            tr '[:upper:]' '[:lower:]' |
+            sed -E 's/[^a-z0-9_.-]+/-/g' |
+            sed -E 's/^[.-]+//; s/[.-]+$//' |
+            cut -c1-90)
+
+          SHORT_SHA="${GITHUB_SHA::12}"
+          IMAGE_TAG="${SAFE_BRANCH}-${SHORT_SHA}"
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+
+          echo "Branch: $GITHUB_REF_NAME"
+          echo "Image tag: $IMAGE_TAG"
+          echo "Image URI: $IMAGE_URI"
+
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        env:
+          IMAGE_URI: ${{ steps.image-metadata.outputs.image_uri }}
         run: |
           docker build \
             --platform linux/amd64 \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            -t "$IMAGE_URI" \
             ./src
 
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+      - name: Push Docker image
+        env:
+          IMAGE_URI: ${{ steps.image-metadata.outputs.image_uri }}
+        run: |
+          docker push "$IMAGE_URI"
   
   deploy:
     name: Deploy application through Auto Scaling
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref_name == 'dev'
     needs: build-and-push
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -132,10 +178,11 @@ jobs:
 
       - name: Update application image
         env:
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          IMAGE_URI: ${{ needs.build-and-push.outputs.image_uri }}
         run: |
-          ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          echo "Deploying image tag: $IMAGE_TAG"
+          echo "Deploying image URI: $IMAGE_URI"
 
           aws ssm put-parameter \
             --name "$IMAGE_PARAMETER_NAME" \
@@ -144,7 +191,7 @@ jobs:
             --overwrite \
             --region "$AWS_REGION"
 
-          echo "Image parameter updated to: $IMAGE_URI"
+          echo "Image parameter updated successfully."
 
       - name: Start Auto Scaling instance refresh
         id: instance-refresh

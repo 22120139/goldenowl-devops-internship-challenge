@@ -36,10 +36,19 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       variable = "token.actions.githubusercontent.com:sub"
 
       values = [
+        # Standard GitHub OIDC subjects
         "repo:22120139/goldenowl-devops-internship-challenge:ref:refs/heads/feature/*",
         "repo:22120139/goldenowl-devops-internship-challenge:ref:refs/heads/master",
+        "repo:22120139/goldenowl-devops-internship-challenge:ref:refs/heads/dev",
+        "repo:22120139/goldenowl-devops-internship-challenge:ref:refs/heads/staging",
+        "repo:22120139/goldenowl-devops-internship-challenge:ref:refs/heads/production",
+
+        # Subjects containing immutable GitHub owner and repository IDs
         "repo:22120139@115928506/goldenowl-devops-internship-challenge@1305564843:ref:refs/heads/feature/*",
-        "repo:22120139@115928506/goldenowl-devops-internship-challenge@1305564843:ref:refs/heads/master"
+        "repo:22120139@115928506/goldenowl-devops-internship-challenge@1305564843:ref:refs/heads/master",
+        "repo:22120139@115928506/goldenowl-devops-internship-challenge@1305564843:ref:refs/heads/dev",
+        "repo:22120139@115928506/goldenowl-devops-internship-challenge@1305564843:ref:refs/heads/staging",
+        "repo:22120139@115928506/goldenowl-devops-internship-challenge@1305564843:ref:refs/heads/production"
       ]
     }
   }
