@@ -95,16 +95,7 @@ overwriting the same Auto Scaling Group and application endpoint.
 
 ## CI/CD Pipeline
 
-```mermaid
-flowchart TD
-    Feature["Push feature branch"] --> Checks["Install, lint, format, test"]
-    Checks --> Merge["Merge into dev"]
-    Merge --> DevChecks["Run quality checks"]
-    DevChecks --> Build["Build dev-commitID image"]
-    Build --> Registry["Push image to ECR"]
-    Registry --> Deploy["Refresh development ASG"]
-    Deploy --> Health["ALB health checks and verification"]
-```
+![CI/CD pipeline](docs/CI-CD-pipeline.png)
 
 ### Continuous Integration
 
